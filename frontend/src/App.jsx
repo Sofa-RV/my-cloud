@@ -5,8 +5,8 @@ import {
   NavLink,
   Route,
   Routes,
-  useLocation,
   useNavigate,
+  useParams,
 } from "react-router-dom";
 
 import {
@@ -122,13 +122,50 @@ function AuthForm({
     setLoading(true);
 
     try {
-      if (
-        !isLogin
-        && form.password !== form.passwordConfirm
-      ) {
-        throw new Error(
-          "Пароли не совпадают.",
-        );
+      if (!isLogin) {
+        if (form.password !== form.passwordConfirm) {
+          throw new Error(
+            "Пароли не совпадают.",
+          );
+        }
+
+        if (
+          !/^[A-Za-z][A-Za-z0-9]{3,19}$/.test(
+            form.username,
+          )
+        ) {
+          throw new Error(
+            "Логин должен содержать от 4 до 20 символов, начинаться с латинской буквы и содержать только латинские буквы и цифры.",
+          );
+        }
+
+        if (form.password.length < 6) {
+          throw new Error(
+            "Пароль должен содержать минимум 6 символов.",
+          );
+        }
+
+        if (!/[A-ZА-ЯЁ]/.test(form.password)) {
+          throw new Error(
+            "Пароль должен содержать хотя бы одну заглавную букву.",
+          );
+        }
+
+        if (!/\d/.test(form.password)) {
+          throw new Error(
+            "Пароль должен содержать хотя бы одну цифру.",
+          );
+        }
+
+        if (
+          !/[^A-Za-zА-Яа-яЁё0-9]/.test(
+            form.password,
+          )
+        ) {
+          throw new Error(
+            "Пароль должен содержать хотя бы один специальный символ.",
+          );
+        }
       }
 
       const data = isLogin
@@ -181,6 +218,10 @@ function AuthForm({
           value={form.username}
           onChange={handleChange}
           autoComplete="username"
+          minLength={4}
+          maxLength={20}
+          pattern="[A-Za-z][A-Za-z0-9]{3,19}"
+          title="От 4 до 20 символов: латинские буквы и цифры, первый символ — буква."
           required
         />
 
@@ -230,6 +271,8 @@ function AuthForm({
               ? "current-password"
               : "new-password"
           }
+          minLength={6}
+          title="Минимум 6 символов, заглавная буква, цифра и специальный символ."
           required
         />
 
@@ -246,6 +289,7 @@ function AuthForm({
               value={form.passwordConfirm}
               onChange={handleChange}
               autoComplete="new-password"
+              minLength={6}
               required
             />
           </>
@@ -284,6 +328,7 @@ function AuthForm({
 
 
 function FileUploader({
+  ownerId = null,
   onUploaded,
 }) {
   const [file, setFile] = useState(null);
@@ -313,6 +358,7 @@ function FileUploader({
       const createdFile = await uploadFile(
         file,
         comment,
+        ownerId,
       );
 
       setFile(null);
@@ -401,6 +447,13 @@ function FileRow({
 
   async function saveFile(event) {
     event.preventDefault();
+
+    if (!fileName.trim()) {
+      setError(
+        "Имя файла не может быть пустым.",
+      );
+      return;
+    }
 
     setError("");
     setSaving(true);
@@ -598,7 +651,10 @@ function FileRow({
 }
 
 
-function FileManager() {
+function FileManager({
+  ownerId = null,
+  ownerName = "",
+}) {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -608,9 +664,15 @@ function FileManager() {
     setLoading(true);
 
     try {
-      const result = await getFiles();
+      const result = await getFiles(
+        ownerId,
+      );
 
-      setFiles(result);
+      setFiles(
+        Array.isArray(result)
+          ? result
+          : [],
+      );
     } catch (requestError) {
       setError(
         getErrorMessage(requestError),
@@ -622,7 +684,7 @@ function FileManager() {
 
   useEffect(() => {
     loadFiles();
-  }, []);
+  }, [ownerId]);
 
   function handleUploaded(createdFile) {
     setFiles((currentFiles) => [
@@ -652,12 +714,19 @@ function FileManager() {
   return (
     <>
       <FileUploader
+        ownerId={ownerId}
         onUploaded={handleUploaded}
       />
 
       <section className="cloud-card">
         <div className="section-header">
-          <h2>Мои файлы</h2>
+          <div>
+            <h2>
+              {ownerName
+                ? `Файлы пользователя ${ownerName}`
+                : "Мои файлы"}
+            </h2>
+          </div>
 
           <button
             type="button"
@@ -709,6 +778,8 @@ function AdminPanel() {
   const [error, setError] = useState("");
   const [actionUserId, setActionUserId] = useState(null);
 
+  const navigate = useNavigate();
+
   async function loadUsers() {
     setError("");
     setLoading(true);
@@ -716,7 +787,11 @@ function AdminPanel() {
     try {
       const result = await getUsers();
 
-      setUsers(result);
+      setUsers(
+        Array.isArray(result)
+          ? result
+          : [],
+      );
     } catch (requestError) {
       setError(
         getErrorMessage(requestError),
@@ -865,6 +940,17 @@ function AdminPanel() {
             </div>
 
             <div className="file-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  navigate(
+                    `/admin/storage/${user.id}`,
+                  );
+                }}
+              >
+                Открыть хранилище
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -1081,13 +1167,68 @@ function ProtectedLayout({
 }
 
 
+function AdminStoragePage({
+  user,
+  onLogout,
+}) {
+  const { userId } = useParams();
+  const navigate = useNavigate();
+
+  const selectedUser = {
+    id: Number(userId),
+    username: `ID ${userId}`,
+  };
+
+  if (!user?.is_app_admin) {
+    return (
+      <Navigate
+        to="/storage"
+        replace
+      />
+    );
+  }
+
+  return (
+    <ProtectedLayout
+      user={user}
+      onLogout={onLogout}
+    >
+      <section className="cloud-card">
+        <div className="section-header">
+          <h2>
+            Управление хранилищем пользователя
+          </h2>
+
+          <button
+            type="button"
+            onClick={() => {
+              navigate("/admin");
+            }}
+          >
+            Назад к пользователям
+          </button>
+        </div>
+
+        <p>
+          Выбран пользователь:{" "}
+          {selectedUser.username}
+        </p>
+      </section>
+
+      <FileManager
+        ownerId={selectedUser.id}
+        ownerName={selectedUser.username}
+      />
+    </ProtectedLayout>
+  );
+}
+
+
 function App() {
   const [user, setUser] = useState(null);
   const [status, setStatus] = useState(
     "Подключение к серверу...",
   );
-
-  const location = useLocation();
 
   useEffect(() => {
     async function initializeApp() {
@@ -1227,14 +1368,24 @@ function App() {
         />
 
         <Route
+          path="/admin/storage/:userId"
+          element={
+            <AdminStoragePage
+              user={user}
+              onLogout={() => {
+                setUser(null);
+              }}
+            />
+          }
+        />
+
+        <Route
           path="*"
           element={
             <Navigate
               to={
                 user
-                  ? location.pathname === "/admin"
-                    ? "/admin"
-                    : "/storage"
+                  ? "/storage"
                   : "/"
               }
               replace

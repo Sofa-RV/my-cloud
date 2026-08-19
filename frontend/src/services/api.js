@@ -121,6 +121,7 @@ export async function getFiles(
 export async function uploadFile(
   file,
   comment,
+  ownerId = null,
 ) {
   const formData = new FormData();
 
@@ -133,6 +134,13 @@ export async function uploadFile(
     "comment",
     comment,
   );
+
+  if (ownerId !== null) {
+    formData.append(
+      "owner_id",
+      ownerId,
+    );
+  }
 
   const response = await apiClient.post(
     "/files/upload/",
