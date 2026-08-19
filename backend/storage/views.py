@@ -1,5 +1,6 @@
 import logging
 
+from django.conf import settings
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -78,6 +79,21 @@ class FileUploadView(APIView):
                 {
                     "detail": (
                         "Файл не был передан."
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if (
+            uploaded_file.size
+            > settings.MAX_UPLOAD_SIZE_BYTES
+        ):
+            return Response(
+                {
+                    "detail": (
+                        "Файл слишком большой. "
+                        "Максимальный размер: "
+                        f"{settings.MAX_UPLOAD_SIZE_MB} МБ."
                     ),
                 },
                 status=status.HTTP_400_BAD_REQUEST,

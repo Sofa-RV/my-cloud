@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
 
+import {
+  Navigate,
+  NavLink,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 
 import {
   deleteFile,
@@ -367,6 +375,9 @@ function FileRow({
   onDeleted,
 }) {
   const [editing, setEditing] = useState(false);
+  const [fileName, setFileName] = useState(
+    file.original_name || "",
+  );
   const [comment, setComment] = useState(
     file.comment || "",
   );
@@ -375,18 +386,20 @@ function FileRow({
   const [deleting, setDeleting] = useState(false);
 
   function startEditing() {
+    setFileName(file.original_name || "");
     setComment(file.comment || "");
     setError("");
     setEditing(true);
   }
 
   function cancelEditing() {
+    setFileName(file.original_name || "");
     setComment(file.comment || "");
     setError("");
     setEditing(false);
   }
 
-  async function saveComment(event) {
+  async function saveFile(event) {
     event.preventDefault();
 
     setError("");
@@ -396,6 +409,7 @@ function FileRow({
       const updatedFile = await updateFile(
         file.id,
         {
+          original_name: fileName.trim(),
           comment,
         },
       );
@@ -456,7 +470,9 @@ function FileRow({
   return (
     <article className="file-row">
       <div className="file-info">
-        <h3>{file.original_name}</h3>
+        {!editing && (
+          <h3>{file.original_name}</h3>
+        )}
 
         <p>
           Размер: {formatFileSize(file.size)}
@@ -465,6 +481,11 @@ function FileRow({
         <p>
           Загружен:{" "}
           {formatDate(file.uploaded_at)}
+        </p>
+
+        <p>
+          Последнее скачивание:{" "}
+          {formatDate(file.last_downloaded_at)}
         </p>
 
         {!editing && (
@@ -477,8 +498,22 @@ function FileRow({
         {editing && (
           <form
             className="comment-form"
-            onSubmit={saveComment}
+            onSubmit={saveFile}
           >
+            <label htmlFor={`name-${file.id}`}>
+              Имя файла
+            </label>
+
+            <input
+              id={`name-${file.id}`}
+              value={fileName}
+              onChange={(event) => {
+                setFileName(event.target.value);
+              }}
+              required
+              autoFocus
+            />
+
             <label htmlFor={`comment-${file.id}`}>
               Комментарий
             </label>
@@ -490,13 +525,14 @@ function FileRow({
                 setComment(event.target.value);
               }}
               rows="3"
-              autoFocus
             />
 
             <div className="comment-actions">
               <button
                 type="submit"
-                disabled={saving}
+                disabled={
+                  saving || !fileName.trim()
+                }
               >
                 {saving
                   ? "Сохранение..."
@@ -530,7 +566,7 @@ function FileRow({
             type="button"
             onClick={startEditing}
           >
-            Изменить
+            Переименовать
           </button>
         )}
 
@@ -864,12 +900,21 @@ function AdminPanel() {
 }
 
 
-function UserPanel({
+function Navigation({
   user,
   onLogout,
 }) {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  function getNavClass({
+    isActive,
+  }) {
+    return isActive
+      ? "nav-link active"
+      : "nav-link";
+  }
 
   async function handleLogout() {
     setError("");
@@ -879,6 +924,13 @@ function UserPanel({
       await logoutUser();
 
       onLogout();
+
+      navigate(
+        "/login",
+        {
+          replace: true,
+        },
+      );
     } catch (requestError) {
       setError(
         getErrorMessage(requestError),
@@ -890,21 +942,22 @@ function UserPanel({
 
   return (
     <>
-      <section className="user-card">
-        <div>
-          <h2>
-            Добро пожаловать,{" "}
-            {user.full_name || user.username}
-          </h2>
+      <nav className="app-nav">
+        <NavLink
+          to="/storage"
+          className={getNavClass}
+        >
+          Хранилище
+        </NavLink>
 
-          <p>
-            Логин: {user.username}
-          </p>
-
-          <p>
-            Email: {user.email || "не указан"}
-          </p>
-        </div>
+        {user.is_app_admin && (
+          <NavLink
+            to="/admin"
+            className={getNavClass}
+          >
+            Администрирование
+          </NavLink>
+        )}
 
         <button
           type="button"
@@ -913,19 +966,116 @@ function UserPanel({
         >
           {loading ? "Выход..." : "Выйти"}
         </button>
+      </nav>
 
-        {error && (
-          <p className="form-error">
-            {error}
-          </p>
-        )}
-      </section>
-
-      <FileManager />
-
-      {user.is_app_admin && (
-        <AdminPanel />
+      {error && (
+        <p className="form-error">
+          {error}
+        </p>
       )}
+    </>
+  );
+}
+
+
+function LandingPage() {
+  const navigate = useNavigate();
+
+  return (
+    <section className="cloud-card landing-card">
+      <h2>Облачное хранилище My Cloud</h2>
+
+      <p>
+        Загружай, храни, скачивай и отправляй
+        файлы через публичные ссылки.
+      </p>
+
+      <div className="landing-actions">
+        <button
+          type="button"
+          onClick={() => {
+            navigate("/login");
+          }}
+        >
+          Войти
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            navigate("/register");
+          }}
+        >
+          Зарегистрироваться
+        </button>
+      </div>
+    </section>
+  );
+}
+
+
+function AuthPage({
+  mode,
+  onSuccess,
+  onSwitch,
+}) {
+  const navigate = useNavigate();
+
+  function handleSuccess(nextUser) {
+    onSuccess(nextUser);
+
+    navigate(
+      nextUser.is_app_admin
+        ? "/admin"
+        : "/storage",
+      {
+        replace: true,
+      },
+    );
+  }
+
+  function handleSwitch() {
+    onSwitch();
+
+    navigate(
+      mode === "login"
+        ? "/register"
+        : "/login",
+    );
+  }
+
+  return (
+    <AuthForm
+      mode={mode}
+      onSuccess={handleSuccess}
+      onSwitch={handleSwitch}
+    />
+  );
+}
+
+
+function ProtectedLayout({
+  user,
+  onLogout,
+  children,
+}) {
+  if (!user) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+      />
+    );
+  }
+
+  return (
+    <>
+      <Navigation
+        user={user}
+        onLogout={onLogout}
+      />
+
+      {children}
     </>
   );
 }
@@ -933,10 +1083,11 @@ function UserPanel({
 
 function App() {
   const [user, setUser] = useState(null);
-  const [mode, setMode] = useState("login");
   const [status, setStatus] = useState(
     "Подключение к серверу...",
   );
+
+  const location = useLocation();
 
   useEffect(() => {
     async function initializeApp() {
@@ -977,26 +1128,120 @@ function App() {
     <main className="app">
       <h1>My Cloud</h1>
 
-      {user ? (
-        <UserPanel
-          user={user}
-          onLogout={() => setUser(null)}
+      <Routes>
+        <Route
+          path="/"
+          element={
+            user ? (
+              <Navigate
+                to="/storage"
+                replace
+              />
+            ) : (
+              <LandingPage />
+            )
+          }
         />
-      ) : (
-        <AuthForm
-          mode={mode}
-          onSuccess={(nextUser) => {
-            setUser(nextUser);
-          }}
-          onSwitch={() => {
-            setMode((currentMode) => (
-              currentMode === "login"
-                ? "register"
-                : "login"
-            ));
-          }}
+
+        <Route
+          path="/login"
+          element={
+            user ? (
+              <Navigate
+                to={
+                  user.is_app_admin
+                    ? "/admin"
+                    : "/storage"
+                }
+                replace
+              />
+            ) : (
+              <AuthPage
+                mode="login"
+                onSuccess={(nextUser) => {
+                  setUser(nextUser);
+                }}
+                onSwitch={() => {}}
+              />
+            )
+          }
         />
-      )}
+
+        <Route
+          path="/register"
+          element={
+            user ? (
+              <Navigate
+                to="/storage"
+                replace
+              />
+            ) : (
+              <AuthPage
+                mode="register"
+                onSuccess={(nextUser) => {
+                  setUser(nextUser);
+                }}
+                onSwitch={() => {}}
+              />
+            )
+          }
+        />
+
+        <Route
+          path="/storage"
+          element={
+            <ProtectedLayout
+              user={user}
+              onLogout={() => {
+                setUser(null);
+              }}
+            >
+              <FileManager />
+            </ProtectedLayout>
+          }
+        />
+
+        <Route
+          path="/admin"
+          element={
+            user?.is_app_admin ? (
+              <ProtectedLayout
+                user={user}
+                onLogout={() => {
+                  setUser(null);
+                }}
+              >
+                <AdminPanel />
+              </ProtectedLayout>
+            ) : (
+              <Navigate
+                to={
+                  user
+                    ? "/storage"
+                    : "/login"
+                }
+                replace
+              />
+            )
+          }
+        />
+
+        <Route
+          path="*"
+          element={
+            <Navigate
+              to={
+                user
+                  ? location.pathname === "/admin"
+                    ? "/admin"
+                    : "/storage"
+                  : "/"
+              }
+              replace
+            />
+          }
+        />
+      </Routes>
     </main>
   );
 }

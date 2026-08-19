@@ -3,9 +3,15 @@
 }
 
 
-body {
-  margin: 0;
+html {
   min-width: 320px;
+}
+
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
   background: #f3f6fb;
   color: #172033;
   font-family:
@@ -32,6 +38,20 @@ button {
 button:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(
+    36,
+    87,
+    214,
+    0.35
+  );
+  outline-offset: 2px;
 }
 
 
@@ -97,7 +117,9 @@ button:disabled {
 
 .auth-card input,
 .cloud-card input,
-.cloud-card textarea {
+.cloud-card textarea,
+.comment-form input,
+.comment-form textarea {
   width: 100%;
   padding: 11px 12px;
   border: 1px solid #bdc8d9;
@@ -108,7 +130,9 @@ button:disabled {
 
 .auth-card input:focus,
 .cloud-card input:focus,
-.cloud-card textarea:focus {
+.cloud-card textarea:focus,
+.comment-form input:focus,
+.comment-form textarea:focus {
   border-color: #2457d6;
   box-shadow: 0 0 0 3px rgba(
     36,
@@ -172,6 +196,100 @@ button:disabled {
 }
 
 
+.app-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto 20px;
+  padding: 14px 18px;
+  border: 1px solid #dbe3f0;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgba(
+    35,
+    58,
+    100,
+    0.06
+  );
+}
+
+
+.app-nav button {
+  margin-left: auto;
+  padding: 9px 12px;
+  background: #fee2e2;
+  color: #b42318;
+  font-weight: 700;
+}
+
+
+.app-nav button:hover {
+  background: #fecaca;
+}
+
+
+.nav-link {
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: #2457d6;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+
+.nav-link:hover {
+  background: #e8eefc;
+}
+
+
+.nav-link.active {
+  background: #2457d6;
+  color: #ffffff;
+}
+
+
+.nav-link.active:hover {
+  background: #1944b4;
+}
+
+
+.landing-card {
+  max-width: 620px;
+  text-align: center;
+}
+
+
+.landing-card p {
+  color: #5b667a;
+  line-height: 1.6;
+}
+
+
+.landing-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+
+.landing-actions button {
+  min-width: 180px;
+  padding: 12px 18px;
+  background: #2457d6;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+
+.landing-actions button:hover {
+  background: #1944b4;
+}
+
+
 .section-header {
   display: flex;
   align-items: center;
@@ -190,6 +308,7 @@ button:disabled {
   background: #e8eefc;
   color: #2457d6;
   text-decoration: none;
+  font-weight: 600;
 }
 
 
@@ -202,7 +321,7 @@ button:disabled {
 
 .file-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 18px;
   padding: 18px 0;
   border-top: 1px solid #e5eaf2;
@@ -211,6 +330,11 @@ button:disabled {
 
 .file-row:first-of-type {
   border-top: 0;
+}
+
+
+.file-info {
+  min-width: 0;
 }
 
 
@@ -224,6 +348,7 @@ button:disabled {
   margin: 5px 0;
   color: #5b667a;
   font-size: 14px;
+  line-height: 1.5;
 }
 
 
@@ -257,23 +382,7 @@ button:disabled {
 
 
 .comment-form textarea {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #bdc8d9;
-  border-radius: 8px;
   resize: vertical;
-}
-
-
-.comment-form textarea:focus {
-  border-color: #2457d6;
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(
-    36,
-    87,
-    214,
-    0.12
-  );
 }
 
 
@@ -314,7 +423,7 @@ button:disabled {
 
 .admin-user-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 18px;
   padding: 18px 0;
   border-top: 1px solid #e5eaf2;
@@ -326,8 +435,14 @@ button:disabled {
 }
 
 
+.admin-user-info {
+  min-width: 0;
+}
+
+
 .admin-user-info h3 {
   margin: 0 0 10px;
+  overflow-wrap: anywhere;
 }
 
 
@@ -335,6 +450,7 @@ button:disabled {
   margin: 5px 0;
   color: #5b667a;
   font-size: 14px;
+  line-height: 1.5;
 }
 
 
@@ -353,6 +469,26 @@ button:disabled {
   .cloud-card,
   .user-card {
     padding: 18px;
+  }
+
+
+  .app-nav {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px;
+  }
+
+
+  .app-nav button {
+    width: 100%;
+    margin-left: 0;
+  }
+
+
+  .nav-link {
+    display: block;
+    text-align: center;
   }
 
 
@@ -378,5 +514,32 @@ button:disabled {
   .section-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+
+  .section-header button {
+    width: 100%;
+  }
+
+
+  .landing-actions {
+    flex-direction: column;
+  }
+
+
+  .landing-actions button {
+    width: 100%;
+  }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }

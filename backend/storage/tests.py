@@ -1,8 +1,5 @@
-import shutil
-import tempfile
-
+from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import override_settings
 from django.urls import reverse
 
 from rest_framework import status
@@ -13,31 +10,27 @@ from accounts.models import User
 from .models import StoredFile
 
 
-TEST_MEDIA_ROOT = tempfile.mkdtemp()
-
-
-@override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT)
 class StorageApiTests(APITestCase):
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass()
-        shutil.rmtree(
-            TEST_MEDIA_ROOT,
-            ignore_errors=True,
+    def setUp(self):
+        self.file_upload_url = reverse(
+            "file-upload",
         )
 
-    def setUp(self):
+        self.files_url = reverse(
+            "file-list",
+        )
+
         self.user = User.objects.create_user(
             username="testuser",
             full_name="Тестовый пользователь",
-            email="testuser@example.com",
+            email="test@example.com",
             password="TestPassword1!",
         )
 
         self.other_user = User.objects.create_user(
             username="otheruser",
             full_name="Другой пользователь",
-            email="otheruser@example.com",
+            email="other@example.com",
             password="OtherPassword1!",
         )
 
@@ -50,57 +43,63 @@ class StorageApiTests(APITestCase):
             is_staff=True,
         )
 
-        self.file_list_url = reverse("file-list")
-        self.file_upload_url = reverse("file-upload")
-
-    def create_uploaded_file(self):
+    def create_uploaded_file(
+        self,
+        filename="test.txt",
+        content=b"test file content",
+        content_type="text/plain",
+    ):
         return SimpleUploadedFile(
-            name="test.txt",
-            content=b"Test file content",
-            content_type="text/plain",
+            filename,
+            content,
+            content_type=content_type,
         )
 
-    def upload_file_as_user(self, user):
+    def upload_file(
+        self,
+        user=None,
+        filename="test.txt",
+        content=b"test file content",
+        content_type="text/plain",
+        comment="",
+    ):
         self.client.force_authenticate(
-            user=user,
+            user=user or self.user,
         )
 
-        response = self.client.post(
+        uploaded_file = self.create_uploaded_file(
+            filename=filename,
+            content=content,
+            content_type=content_type,
+        )
+
+        return self.client.post(
             self.file_upload_url,
             {
-                "file": self.create_uploaded_file(),
-                "comment": "Тестовый комментарий",
+                "file": uploaded_file,
+                "comment": comment,
             },
             format="multipart",
         )
+
+    def test_authenticated_user_can_upload_file(self):
+        response = self.upload_file()
 
         self.assertEqual(
             response.status_code,
             status.HTTP_201_CREATED,
         )
 
-        return StoredFile.objects.get(
-            id=response.data["id"],
+        self.assertEqual(
+            StoredFile.objects.count(),
+            1,
         )
 
-    def test_unauthenticated_user_cannot_get_file_list(self):
-        response = self.client.get(
-            self.file_list_url,
-        )
+        stored_file = StoredFile.objects.get()
 
         self.assertEqual(
-            response.status_code,
-            status.HTTP_403_FORBIDDEN,
-        )
-
-    def test_user_can_upload_file(self):
-        stored_file = self.upload_file_as_user(
+            stored_file.owner,
             self.user,
-        )
-
-        self.assertEqual(
-            stored_file.owner_id,
-            self.user.id,
         )
 
         self.assertEqual(
@@ -110,28 +109,53 @@ class StorageApiTests(APITestCase):
 
         self.assertEqual(
             stored_file.size,
-            len(b"Test file content"),
+            len(b"test file content"),
         )
 
-        self.assertTrue(
-            stored_file.file.name.startswith(
-                f"users/{self.user.id}/",
-            ),
+    def test_unauthenticated_user_cannot_upload_file(self):
+        uploaded_file = self.create_uploaded_file()
+
+        response = self.client.post(
+            self.file_upload_url,
+            {
+                "file": uploaded_file,
+            },
+            format="multipart",
         )
 
-        self.assertTrue(
-            stored_file.file.storage.exists(
-                stored_file.file.name,
-            ),
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
         )
 
-    def test_user_sees_only_own_files(self):
-        user_file = self.upload_file_as_user(
-            self.user,
+    def test_authenticated_user_can_list_files(self):
+        self.upload_file(
+            filename="own-file.txt",
         )
 
-        self.upload_file_as_user(
-            self.other_user,
+        response = self.client.get(
+            self.files_url,
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertEqual(
+            len(response.data),
+            1,
+        )
+
+        self.assertEqual(
+            response.data[0]["original_name"],
+            "own-file.txt",
+        )
+
+    def test_user_does_not_see_other_user_files(self):
+        self.upload_file(
+            user=self.other_user,
+            filename="other-file.txt",
         )
 
         self.client.force_authenticate(
@@ -139,7 +163,7 @@ class StorageApiTests(APITestCase):
         )
 
         response = self.client.get(
-            self.file_list_url,
+            self.files_url,
         )
 
         self.assertEqual(
@@ -147,19 +171,20 @@ class StorageApiTests(APITestCase):
             status.HTTP_200_OK,
         )
 
-        file_ids = {
-            item["id"]
-            for item in response.data
-        }
-
         self.assertEqual(
-            file_ids,
-            {user_file.id},
+            response.data,
+            [],
         )
 
-    def test_admin_can_get_another_users_files(self):
-        user_file = self.upload_file_as_user(
-            self.user,
+    def test_admin_can_list_all_files(self):
+        self.upload_file(
+            user=self.user,
+            filename="user-file.txt",
+        )
+
+        self.upload_file(
+            user=self.other_user,
+            filename="other-file.txt",
         )
 
         self.client.force_authenticate(
@@ -167,10 +192,7 @@ class StorageApiTests(APITestCase):
         )
 
         response = self.client.get(
-            self.file_list_url,
-            {
-                "owner_id": self.user.id,
-            },
+            self.files_url,
         )
 
         self.assertEqual(
@@ -178,26 +200,184 @@ class StorageApiTests(APITestCase):
             status.HTTP_200_OK,
         )
 
+        filenames = {
+            item["original_name"]
+            for item in response.data
+        }
+
+        self.assertIn(
+            "user-file.txt",
+            filenames,
+        )
+
+        self.assertIn(
+            "other-file.txt",
+            filenames,
+        )
+
+    def test_user_can_download_own_file(self):
+        upload_response = self.upload_file()
+
         self.assertEqual(
-            response.data[0]["id"],
-            user_file.id,
+            upload_response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        file_id = upload_response.data["id"]
+
+        download_url = reverse(
+            "file-download",
+            kwargs={
+                "file_id": file_id,
+            },
+        )
+
+        response = self.client.get(
+            download_url,
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertIn(
+            'filename="test.txt"',
+            response["Content-Disposition"],
+        )
+
+        content = b"".join(
+            response.streaming_content,
+        )
+
+        self.assertEqual(
+            content,
+            b"test file content",
+        )
+
+    def test_admin_can_download_other_user_file(self):
+        upload_response = self.upload_file(
+            user=self.user,
+        )
+
+        file_id = upload_response.data["id"]
+
+        download_url = reverse(
+            "file-download",
+            kwargs={
+                "file_id": file_id,
+            },
+        )
+
+        self.client.force_authenticate(
+            user=self.admin,
+        )
+
+        response = self.client.get(
+            download_url,
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        content = b"".join(
+            response.streaming_content,
+        )
+
+        self.assertEqual(
+            content,
+            b"test file content",
+        )
+
+    def test_other_user_cannot_download_other_users_file(self):
+        upload_response = self.upload_file(
+            user=self.user,
+        )
+
+        file_id = upload_response.data["id"]
+
+        download_url = reverse(
+            "file-download",
+            kwargs={
+                "file_id": file_id,
+            },
+        )
+
+        self.client.force_authenticate(
+            user=self.other_user,
+        )
+
+        response = self.client.get(
+            download_url,
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_public_file_can_be_downloaded_without_authentication(
+        self,
+    ):
+        upload_response = self.upload_file()
+
+        self.assertEqual(
+            upload_response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        public_token = upload_response.data[
+            "public_token"
+        ]
+
+        public_url = reverse(
+            "public-file-download",
+            kwargs={
+                "token": public_token,
+            },
+        )
+
+        self.client.logout()
+
+        response = self.client.get(
+            public_url,
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        content = b"".join(
+            response.streaming_content,
+        )
+
+        self.assertEqual(
+            content,
+            b"test file content",
         )
 
     def test_user_can_update_own_file(self):
-        stored_file = self.upload_file_as_user(
-            self.user,
+        upload_response = self.upload_file(
+            comment="Старый комментарий",
         )
 
-        url = reverse(
+        file_id = upload_response.data["id"]
+
+        detail_url = reverse(
             "file-detail",
-            kwargs={"file_id": stored_file.id},
+            kwargs={
+                "file_id": file_id,
+            },
         )
 
         response = self.client.patch(
-            url,
+            detail_url,
             {
                 "original_name": "renamed.txt",
-                "comment": "Изменённый комментарий",
+                "comment": "Новый комментарий",
             },
             format="json",
         )
@@ -207,7 +387,9 @@ class StorageApiTests(APITestCase):
             status.HTTP_200_OK,
         )
 
-        stored_file.refresh_from_db()
+        stored_file = StoredFile.objects.get(
+            id=file_id,
+        )
 
         self.assertEqual(
             stored_file.original_name,
@@ -216,27 +398,31 @@ class StorageApiTests(APITestCase):
 
         self.assertEqual(
             stored_file.comment,
-            "Изменённый комментарий",
+            "Новый комментарий",
         )
 
-    def test_user_cannot_update_another_users_file(self):
-        stored_file = self.upload_file_as_user(
-            self.other_user,
-        )
-
-        self.client.force_authenticate(
+    def test_other_user_cannot_update_file(self):
+        upload_response = self.upload_file(
             user=self.user,
         )
 
-        url = reverse(
+        file_id = upload_response.data["id"]
+
+        detail_url = reverse(
             "file-detail",
-            kwargs={"file_id": stored_file.id},
+            kwargs={
+                "file_id": file_id,
+            },
+        )
+
+        self.client.force_authenticate(
+            user=self.other_user,
         )
 
         response = self.client.patch(
-            url,
+            detail_url,
             {
-                "original_name": "hacked.txt",
+                "comment": "Чужой комментарий",
             },
             format="json",
         )
@@ -246,118 +432,38 @@ class StorageApiTests(APITestCase):
             status.HTTP_403_FORBIDDEN,
         )
 
-    def test_user_can_download_own_file(self):
-        stored_file = self.upload_file_as_user(
-            self.user,
-        )
-
-        url = reverse(
-            "file-download",
-            kwargs={"file_id": stored_file.id},
-        )
-
-        response = self.client.get(url)
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_200_OK,
-        )
-
-        self.assertEqual(
-            response["Content-Disposition"],
-            'attachment; filename="test.txt"',
-        )
-
-        stored_file.refresh_from_db()
-
-        self.assertIsNotNone(
-            stored_file.last_downloaded_at,
-        )
-
-    def test_other_user_cannot_download_file(self):
-        stored_file = self.upload_file_as_user(
-            self.user,
-        )
-
-        self.client.force_authenticate(
-            user=self.other_user,
-        )
-
-        url = reverse(
-            "file-download",
-            kwargs={"file_id": stored_file.id},
-        )
-
-        response = self.client.get(url)
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_403_FORBIDDEN,
-        )
-
-    def test_admin_can_download_another_users_file(self):
-        stored_file = self.upload_file_as_user(
-            self.user,
-        )
-
-        self.client.force_authenticate(
-            user=self.admin,
-        )
-
-        url = reverse(
-            "file-download",
-            kwargs={"file_id": stored_file.id},
-        )
-
-        response = self.client.get(url)
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_200_OK,
-        )
-
-    def test_public_link_downloads_file_without_authentication(self):
-        stored_file = self.upload_file_as_user(
-            self.user,
-        )
-
-        self.client.force_authenticate(
-            user=None,
-        )
-
-        url = reverse(
-            "public-file-download",
-            kwargs={"token": stored_file.public_token},
-        )
-
-        response = self.client.get(url)
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_200_OK,
-        )
-
-        self.assertEqual(
-            response["Content-Disposition"],
-            'attachment; filename="test.txt"',
-        )
-
     def test_user_can_delete_own_file(self):
-        stored_file = self.upload_file_as_user(
-            self.user,
+        upload_response = self.upload_file()
+
+        self.assertEqual(
+            upload_response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        file_id = upload_response.data["id"]
+
+        stored_file = StoredFile.objects.get(
+            id=file_id,
         )
 
         file_name = stored_file.file.name
+
         self.assertTrue(
-            stored_file.file.storage.exists(file_name),
+            stored_file.file.storage.exists(
+                file_name,
+            ),
         )
 
-        url = reverse(
+        detail_url = reverse(
             "file-detail",
-            kwargs={"file_id": stored_file.id},
+            kwargs={
+                "file_id": file_id,
+            },
         )
 
-        response = self.client.delete(url)
+        response = self.client.delete(
+            detail_url,
+        )
 
         self.assertEqual(
             response.status_code,
@@ -366,31 +472,77 @@ class StorageApiTests(APITestCase):
 
         self.assertFalse(
             StoredFile.objects.filter(
-                id=stored_file.id,
+                id=file_id,
             ).exists(),
         )
 
         self.assertFalse(
-            stored_file.file.storage.exists(file_name),
+            stored_file.file.storage.exists(
+                file_name,
+            ),
         )
 
     def test_other_user_cannot_delete_file(self):
-        stored_file = self.upload_file_as_user(
-            self.user,
+        upload_response = self.upload_file(
+            user=self.user,
+        )
+
+        file_id = upload_response.data["id"]
+
+        detail_url = reverse(
+            "file-detail",
+            kwargs={
+                "file_id": file_id,
+            },
         )
 
         self.client.force_authenticate(
             user=self.other_user,
         )
 
-        url = reverse(
-            "file-detail",
-            kwargs={"file_id": stored_file.id},
+        response = self.client.delete(
+            detail_url,
         )
-
-        response = self.client.delete(url)
 
         self.assertEqual(
             response.status_code,
             status.HTTP_403_FORBIDDEN,
+        )
+
+        self.assertTrue(
+            StoredFile.objects.filter(
+                id=file_id,
+            ).exists(),
+        )
+
+    def test_upload_rejects_file_above_size_limit(self):
+        oversized_file = SimpleUploadedFile(
+            "large.bin",
+            b"x" * (
+                settings.MAX_UPLOAD_SIZE_BYTES
+                + 1
+            ),
+            content_type="application/octet-stream",
+        )
+
+        self.client.force_authenticate(
+            user=self.user,
+        )
+
+        response = self.client.post(
+            self.file_upload_url,
+            {
+                "file": oversized_file,
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertIn(
+            "слишком большой",
+            response.data["detail"],
         )

@@ -41,8 +41,12 @@ def get_list_env(name, default=""):
 
 SECRET_KEY = os.getenv(
     "DJANGO_SECRET_KEY",
-    "django-insecure-local-development-key",
 )
+
+if not SECRET_KEY:
+    raise RuntimeError(
+        "DJANGO_SECRET_KEY не задан в .env",
+    )
 
 
 DEBUG = get_bool_env(
@@ -64,10 +68,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-
     "corsheaders",
     "rest_framework",
-
     "accounts",
     "storage",
 ]
@@ -182,16 +184,21 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "ru-ru"
 
+
 TIME_ZONE = "Europe/Moscow"
 
+
 USE_I18N = True
+
 
 USE_TZ = True
 
 
 STATIC_URL = "static/"
 
+
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
 
 STATICFILES_DIRS = [
     BASE_DIR / "static",
@@ -200,7 +207,23 @@ STATICFILES_DIRS = [
 
 MEDIA_URL = "media/"
 
+
 MEDIA_ROOT = BASE_DIR / "media"
+
+
+MAX_UPLOAD_SIZE_MB = int(
+    os.getenv(
+        "MAX_UPLOAD_SIZE_MB",
+        "100",
+    ),
+)
+
+
+MAX_UPLOAD_SIZE_BYTES = (
+    MAX_UPLOAD_SIZE_MB
+    * 1024
+    * 1024
+)
 
 
 DEFAULT_AUTO_FIELD = (
@@ -244,11 +267,52 @@ CSRF_TRUSTED_ORIGINS = [
 
 CSRF_COOKIE_HTTPONLY = False
 
+
 CSRF_COOKIE_SAMESITE = "Lax"
+
 
 SESSION_COOKIE_SAMESITE = "Lax"
 
+
 SESSION_COOKIE_HTTPONLY = True
+
+
+SECURE_SSL_REDIRECT = get_bool_env(
+    "DJANGO_SECURE_SSL_REDIRECT",
+    False,
+)
+
+
+SESSION_COOKIE_SECURE = get_bool_env(
+    "DJANGO_SESSION_COOKIE_SECURE",
+    False,
+)
+
+
+CSRF_COOKIE_SECURE = get_bool_env(
+    "DJANGO_CSRF_COOKIE_SECURE",
+    False,
+)
+
+
+SECURE_HSTS_SECONDS = int(
+    os.getenv(
+        "DJANGO_SECURE_HSTS_SECONDS",
+        "0",
+    ),
+)
+
+
+SECURE_HSTS_INCLUDE_SUBDOMAINS = get_bool_env(
+    "DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS",
+    False,
+)
+
+
+SECURE_HSTS_PRELOAD = get_bool_env(
+    "DJANGO_SECURE_HSTS_PRELOAD",
+    False,
+)
 
 
 PUBLIC_FILE_BASE_URL = os.getenv(
