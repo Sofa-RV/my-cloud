@@ -1,0 +1,33 @@
+{
+  "name": "my-cloud-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Frontend приложения My Cloud",
+  "main": "src/index.jsx",
+  "scripts": {
+    "start": "webpack serve --mode development --open",
+    "build": "webpack --mode production",
+    "check": "webpack --mode development"
+  },
+  "dependencies": {
+    "@reduxjs/toolkit": "2.8.2",
+    "axios": "1.11.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-redux": "9.2.0",
+    "react-router-dom": "6.30.1"
+  },
+  "devDependencies": {
+    "@babel/core": "7.28.4",
+    "@babel/preset-env": "7.28.3",
+    "@babel/preset-react": "7.27.1",
+    "babel-loader": "10.0.0",
+    "copy-webpack-plugin": "13.0.1",
+    "css-loader": "7.1.2",
+    "html-webpack-plugin": "5.6.3",
+    "style-loader": "4.0.0",
+    "webpack": "5.101.3",
+    "webpack-cli": "6.0.1",
+    "webpack-dev-server": "5.2.2"
+  }
+}
