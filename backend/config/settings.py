@@ -7,6 +7,14 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+PROJECT_ROOT = BASE_DIR.parent
+
+
+FRONTEND_DIST_DIR = (
+    BASE_DIR
+    / "frontend_dist"
+)
+
 load_dotenv(
     BASE_DIR / ".env",
 )
@@ -200,9 +208,7 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 
-STATICFILES_DIRS = [
-    BASE_DIR / "static",
-]
+STATICFILES_DIRS = []
 
 
 MEDIA_URL = "media/"
