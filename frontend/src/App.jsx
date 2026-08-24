@@ -944,7 +944,7 @@ function AdminPanel() {
                 type="button"
                 onClick={() => {
                   navigate(
-                    `/admin/storage/${user.id}`,
+                    `/storage/admin/${user.id}`,
                   );
                 }}
               >
@@ -1368,7 +1368,7 @@ function App() {
         />
 
         <Route
-          path="/admin/storage/:userId"
+          path="/storage/admin/:userId"
           element={
             <AdminStoragePage
               user={user}

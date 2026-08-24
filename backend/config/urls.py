@@ -1,5 +1,7 @@
 from django.conf import settings
 from django.conf.urls.static import static
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include
 from django.urls import path
@@ -28,7 +30,7 @@ urlpatterns = [
         name="frontend-asset",
     ),
     re_path(
-        r"^(?!admin/|api/|media/|assets/).*$",
+        r"^(?!api/|media/|assets/).*$",
         frontend_index,
         name="frontend-index",
     ),
