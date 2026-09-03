@@ -19,20 +19,28 @@ import {
   registerUser,
 } from "./services/api";
 
-
 jest.mock(
   "./services/api",
   () => ({
     deleteFile: jest.fn(),
     deleteUser: jest.fn(),
+
     getCurrentUser: jest.fn(),
+
     getDownloadUrl: jest.fn(
-      (fileId) => `/api/files/${fileId}/download/`,
+      (fileId) => (
+        `/api/files/${fileId}/download/`
+      ),
     ),
+
     getFiles: jest.fn(),
+
     getPublicFileUrl: jest.fn(
-      (token) => `/api/files/public/${token}/`,
+      (token) => (
+        `/api/files/public/${token}/`
+      ),
     ),
+
     getUsers: jest.fn(),
     initializeCsrf: jest.fn(),
     loginUser: jest.fn(),
@@ -43,7 +51,6 @@ jest.mock(
     uploadFile: jest.fn(),
   }),
 );
-
 
 function renderApp(
   initialEntries = ["/login"],
@@ -60,7 +67,6 @@ function renderApp(
     </MemoryRouter>,
   );
 }
-
 
 describe("App", () => {
   beforeEach(() => {

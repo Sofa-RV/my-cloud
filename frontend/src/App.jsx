@@ -26,7 +26,6 @@ import {
   uploadFile,
 } from "./services/api";
 
-
 function getErrorMessage(error) {
   const data = error?.response?.data;
 
@@ -53,40 +52,100 @@ function getErrorMessage(error) {
     .join("\n");
 }
 
-
 function formatFileSize(size) {
   if (size < 1024) {
     return `${size} Б`;
   }
 
   if (size < 1024 * 1024) {
-    return `${(
-      size / 1024
-    ).toFixed(1)} КБ`;
+    return `${(size / 1024).toFixed(1)} КБ`;
   }
 
   if (size < 1024 * 1024 * 1024) {
-    return `${(
-      size / 1024 / 1024
-    ).toFixed(1)} МБ`;
+    return `${(size / 1024 / 1024).toFixed(1)} МБ`;
   }
 
-  return `${(
-    size / 1024 / 1024 / 1024
-  ).toFixed(1)} ГБ`;
+  return `${(size / 1024 / 1024 / 1024).toFixed(1)} ГБ`;
 }
-
 
 function formatDate(value) {
   if (!value) {
     return "—";
   }
 
-  return new Date(value).toLocaleString(
-    "ru-RU",
-  );
+  return new Date(value).toLocaleString("ru-RU");
 }
 
+function makeAbsoluteUrl(value) {
+  if (!value) {
+    return "";
+  }
+
+  try {
+    return new URL(
+      value,
+      window.location.origin,
+    ).href;
+  } catch {
+    return value;
+  }
+}
+
+async function copyTextToClipboard(text) {
+  if (
+    navigator.clipboard
+    && typeof navigator.clipboard.writeText === "function"
+  ) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (error) {
+      console.warn(
+        "Clipboard API недоступен:",
+        error,
+      );
+    }
+  }
+
+  const textArea = document.createElement("textarea");
+
+  textArea.value = text;
+  textArea.setAttribute("readonly", "");
+  textArea.style.position = "fixed";
+  textArea.style.left = "0";
+  textArea.style.top = "0";
+  textArea.style.width = "1px";
+  textArea.style.height = "1px";
+  textArea.style.opacity = "0";
+  textArea.style.pointerEvents = "none";
+
+  document.body.appendChild(textArea);
+
+  textArea.focus();
+  textArea.select();
+  textArea.setSelectionRange(0, textArea.value.length);
+
+  let copied = false;
+
+  try {
+    copied = document.execCommand("copy");
+  } catch (error) {
+    console.warn(
+      "Fallback копирования недоступен:",
+      error,
+    );
+  }
+
+  document.body.removeChild(textArea);
+
+  if (!copied) {
+    throw new Error(
+      "Автоматическое копирование запрещено браузером.",
+    );
+  }
+
+  return true;
+}
 
 function AuthForm({
   mode,
@@ -124,9 +183,7 @@ function AuthForm({
     try {
       if (!isLogin) {
         if (form.password !== form.passwordConfirm) {
-          throw new Error(
-            "Пароли не совпадают.",
-          );
+          throw new Error("Пароли не совпадают.");
         }
 
         if (
@@ -192,9 +249,7 @@ function AuthForm({
       ) {
         setError(requestError.message);
       } else {
-        setError(
-          getErrorMessage(requestError),
-        );
+        setError(getErrorMessage(requestError));
       }
     } finally {
       setLoading(false);
@@ -326,7 +381,6 @@ function AuthForm({
   );
 }
 
-
 function FileUploader({
   ownerId = null,
   onUploaded,
@@ -337,9 +391,7 @@ function FileUploader({
   const [loading, setLoading] = useState(false);
 
   function handleFileChange(event) {
-    setFile(
-      event.target.files[0] || null,
-    );
+    setFile(event.target.files[0] || null);
     setError("");
   }
 
@@ -367,9 +419,7 @@ function FileUploader({
 
       onUploaded(createdFile);
     } catch (requestError) {
-      setError(
-        getErrorMessage(requestError),
-      );
+      setError(getErrorMessage(requestError));
     } finally {
       setLoading(false);
     }
@@ -414,7 +464,6 @@ function FileUploader({
   );
 }
 
-
 function FileRow({
   file,
   onUpdated,
@@ -428,6 +477,7 @@ function FileRow({
     file.comment || "",
   );
   const [error, setError] = useState("");
+  const [copiedUrl, setCopiedUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -435,6 +485,7 @@ function FileRow({
     setFileName(file.original_name || "");
     setComment(file.comment || "");
     setError("");
+    setCopiedUrl("");
     setEditing(true);
   }
 
@@ -442,6 +493,7 @@ function FileRow({
     setFileName(file.original_name || "");
     setComment(file.comment || "");
     setError("");
+    setCopiedUrl("");
     setEditing(false);
   }
 
@@ -449,13 +501,12 @@ function FileRow({
     event.preventDefault();
 
     if (!fileName.trim()) {
-      setError(
-        "Имя файла не может быть пустым.",
-      );
+      setError("Имя файла не может быть пустым.");
       return;
     }
 
     setError("");
+    setCopiedUrl("");
     setSaving(true);
 
     try {
@@ -470,9 +521,7 @@ function FileRow({
       onUpdated(updatedFile);
       setEditing(false);
     } catch (requestError) {
-      setError(
-        getErrorMessage(requestError),
-      );
+      setError(getErrorMessage(requestError));
     } finally {
       setSaving(false);
     }
@@ -488,35 +537,60 @@ function FileRow({
     }
 
     setError("");
+    setCopiedUrl("");
     setDeleting(true);
 
     try {
       await deleteFile(file.id);
       onDeleted(file.id);
     } catch (requestError) {
-      setError(
-        getErrorMessage(requestError),
-      );
+      setError(getErrorMessage(requestError));
     } finally {
       setDeleting(false);
     }
   }
 
   async function copyPublicLink() {
-    const publicUrl = getPublicFileUrl(
+    setError("");
+    setCopiedUrl("");
+
+    const publicPath = getPublicFileUrl(
       file.public_token,
     );
 
+    const publicUrl = new URL(
+      publicPath,
+      window.location.origin,
+    ).href;
+
     try {
+      if (
+        !navigator.clipboard
+        || typeof navigator.clipboard.writeText
+          !== "function"
+      ) {
+        throw new Error(
+          "Clipboard API недоступен",
+        );
+      }
+
       await navigator.clipboard.writeText(
         publicUrl,
       );
 
+      setCopiedUrl(publicUrl);
+
       setError(
         "Публичная ссылка скопирована.",
       );
-    } catch {
-      setError(publicUrl);
+    } catch (copyError) {
+      console.warn(copyError);
+
+      setCopiedUrl(publicUrl);
+
+      setError(
+        "Автоматическое копирование запрещено. Ссылка показана ниже — нажми на поле и используй Ctrl+C.",
+      );
     }
   }
 
@@ -607,7 +681,9 @@ function FileRow({
       <div className="file-actions">
         <a
           className="action-button"
-          href={getDownloadUrl(file.id)}
+          href={makeAbsoluteUrl(
+            getDownloadUrl(file.id),
+          )}
           target="_blank"
           rel="noreferrer"
         >
@@ -646,10 +722,47 @@ function FileRow({
           {error}
         </p>
       )}
+
+      {copiedUrl && (
+        <div className="public-link">
+          <label htmlFor={`public-link-${file.id}`}>
+            Полная публичная ссылка
+          </label>
+
+          <input
+            id={`public-link-${file.id}`}
+            value={copiedUrl}
+            readOnly
+            onFocus={(event) => {
+              event.target.select();
+            }}
+            onClick={(event) => {
+              event.target.select();
+            }}
+          />
+
+          <button
+            type="button"
+            onClick={() => {
+              const input = document.getElementById(
+                `public-link-${file.id}`,
+              );
+
+              if (!input) {
+                return;
+              }
+
+              input.focus();
+              input.select();
+            }}
+          >
+            Выделить ссылку
+          </button>
+        </div>
+      )}
     </article>
   );
 }
-
 
 function FileManager({
   ownerId = null,
@@ -664,9 +777,7 @@ function FileManager({
     setLoading(true);
 
     try {
-      const result = await getFiles(
-        ownerId,
-      );
+      const result = await getFiles(ownerId);
 
       setFiles(
         Array.isArray(result)
@@ -674,9 +785,7 @@ function FileManager({
           : [],
       );
     } catch (requestError) {
-      setError(
-        getErrorMessage(requestError),
-      );
+      setError(getErrorMessage(requestError));
     } finally {
       setLoading(false);
     }
@@ -771,7 +880,6 @@ function FileManager({
   );
 }
 
-
 function AdminPanel() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -793,9 +901,7 @@ function AdminPanel() {
           : [],
       );
     } catch (requestError) {
-      setError(
-        getErrorMessage(requestError),
-      );
+      setError(getErrorMessage(requestError));
     } finally {
       setLoading(false);
     }
@@ -828,9 +934,7 @@ function AdminPanel() {
         )
       ));
     } catch (requestError) {
-      setError(
-        getErrorMessage(requestError),
-      );
+      setError(getErrorMessage(requestError));
     } finally {
       setActionUserId(null);
     }
@@ -853,9 +957,7 @@ function AdminPanel() {
         ))
       ));
     } catch (requestError) {
-      setError(
-        getErrorMessage(requestError),
-      );
+      setError(getErrorMessage(requestError));
     } finally {
       setActionUserId(null);
     }
@@ -985,7 +1087,6 @@ function AdminPanel() {
   );
 }
 
-
 function Navigation({
   user,
   onLogout,
@@ -1018,9 +1119,7 @@ function Navigation({
         },
       );
     } catch (requestError) {
-      setError(
-        getErrorMessage(requestError),
-      );
+      setError(getErrorMessage(requestError));
     } finally {
       setLoading(false);
     }
@@ -1063,7 +1162,6 @@ function Navigation({
   );
 }
 
-
 function LandingPage() {
   const navigate = useNavigate();
 
@@ -1098,7 +1196,6 @@ function LandingPage() {
     </section>
   );
 }
-
 
 function AuthPage({
   mode,
@@ -1139,7 +1236,6 @@ function AuthPage({
   );
 }
 
-
 function ProtectedLayout({
   user,
   onLogout,
@@ -1165,7 +1261,6 @@ function ProtectedLayout({
     </>
   );
 }
-
 
 function AdminStoragePage({
   user,
@@ -1222,7 +1317,6 @@ function AdminStoragePage({
     </ProtectedLayout>
   );
 }
-
 
 function App() {
   const [user, setUser] = useState(null);
@@ -1396,6 +1490,5 @@ function App() {
     </main>
   );
 }
-
 
 export default App;
